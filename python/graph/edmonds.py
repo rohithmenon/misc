@@ -1,21 +1,9 @@
-def does_loop(a, b):
-    k = a + b
-    if k % 2 != 0:
-        return True
-    # Count trailing 0 bits in k
-    cnt = 0
-    n = k
-    while ((n & 1) == 0):
-        cnt += 1
-        n = n >> 1
-    return a % (k / (2 ** cnt)) != 0
-
 class Node(object):
     def __init__(self, node_id, parent=None):
         self.node_id = node_id
         self.parent = parent
 	self.matched = None
-	self.neighbours = []
+	self.neighbours = set()
 
     def get_node_id(self):
         return self.node_id
@@ -38,7 +26,7 @@ class Node(object):
 
     def connect(self, node):
         if self != node and node not in self.neighbours:
-	    self.neighbours.append(node)
+	    self.neighbours.add(node)
 
     def replace_neighbour(self, node1, node2):
         if node1 in self.neighbours:
@@ -99,23 +87,27 @@ class SuperNode(Node):
                         match(child, neighbour)
         self.contracted = False
 
+    def find_path_in_cycle(self, cycle):
+        path = []
+        idx = cycle.index(start_node)
+        while True:
+            path.append(cycle[idx])
+            if (to_node in cycle[idx].get_neighbours() or not cycle[idx].get_parent()) \
+                    and len(path) % 2 == 1:
+                break
+            idx = (idx + 1) % len(cycle)
+        return path
+
     def path(self, from_node, to_node):
-        candidates = set(from_node.get_neighbours()) & set(self.children)
+        candidates = from_node.get_neighbours() & set(self.children)
         for start_node in candidates:
-            def find_path_in_cycle(cycle):
-                path = []
-                idx = cycle.index(start_node)
-                while True:
-                    path.append(cycle[idx])
-                    if (to_node in cycle[idx].get_neighbours() or not cycle[idx].get_parent()) and len(path) % 2 == 1:
-                        break
-                    idx = (idx + 1) % len(cycle)
+            path = self.find_path_in_cycle(self.children)
+            if len(path) % 2 == 1 and (to_node and to_node in path[-1].get_neighbours()) \
+                    or (not to_node and not path[-1].get_parent()):
                 return path
-            path = find_path_in_cycle(self.children)
-            if len(path) % 2 == 1 and (to_node and to_node in path[-1].get_neighbours()) or (not to_node and not path[-1].get_parent()):
-                return path
-            path = find_path_in_cycle(self.reverse_children)
-            if len(path) % 2 == 1 and (to_node and to_node in path[-1].get_neighbours()) or (not to_node and not path[-1].get_parent()):
+            path = self.find_path_in_cycle(self.reverse_children)
+            if len(path) % 2 == 1 and (to_node and to_node in path[-1].get_neighbours()) \
+                    or (not to_node and not path[-1].get_parent()):
                 return path
         raise Exception("No valid path found")
 
@@ -190,14 +182,14 @@ def expand_path(path, depth=0):
 
 def max_matching(graph):
     queue = []
-    free_nodes = list(graph)
+    free_nodes = set(graph)
     sn_cnt = 0
     while free_nodes:
         clear_traversal(graph)
         free_node = free_nodes.pop()
         queue.append(free_node)
         level_tree = {free_node: 0}
-        all_nodes = list(graph)
+        all_nodes = set(graph)
         while queue:
             node = queue.pop(0)
             for child in node.get_neighbours():
@@ -218,7 +210,7 @@ def max_matching(graph):
                     super_node_id = 'sn_{:0>3d}'.format(sn_cnt)
                     sn_cnt += 1
                     super_node = SuperNode(super_node_id, cycle, cycle_root)
-                    all_nodes.append(super_node)
+                    all_nodes.add(super_node)
                     super_node.contract()
                     super_node_added = False
                     for i in range(len(queue)):
@@ -256,11 +248,8 @@ def max_matching(graph):
                     queue = []
 		    break
     max_matches = 0
-    matched_nodes = set()
     for node in graph:
         if node.get_matched():
-            matched_nodes.add(node)
-            matched_nodes.add(node.get_matched())
             max_matches += 1
     return max_matches
 
@@ -301,6 +290,7 @@ def g2():
     connect(n2, n4)
     return set([n0, n1, n2, n3, n4, n5])
 
-print max_matching(g1())
-print max_matching(g2())
+if __name__ == "__main__":
+    print max_matching(g1())
+    print max_matching(g2())
 
